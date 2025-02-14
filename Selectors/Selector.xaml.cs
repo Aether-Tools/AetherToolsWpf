@@ -8,12 +8,12 @@ using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using XivToolsWpf;
@@ -28,9 +28,9 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	public static readonly DependencyProperty ItemTemplateProperty = DependencyProperty.Register(nameof(ItemTemplate), typeof(DataTemplate), typeof(Selector), new FrameworkPropertyMetadata(new PropertyChangedCallback(OnValueChangedStatic)));
 	public static readonly DependencyProperty ListBoxItemStyleProperty = DependencyProperty.Register(nameof(ListBoxItemStyle), typeof(Style), typeof(Selector), new FrameworkPropertyMetadata(new PropertyChangedCallback(OnValueChangedStatic)));
 
-	private static readonly Dictionary<Type, string?> SearchInputs = new Dictionary<Type, string?>();
-	private static readonly Dictionary<Type, double> ScrollPositions = new Dictionary<Type, double>();
-	private readonly List<ItemEntry> entries = new List<ItemEntry>();
+	private static readonly Dictionary<Type, string?> SearchInputs = [];
+	private static readonly Dictionary<Type, double> ScrollPositions = [];
+	private readonly List<ItemEntry> entries = [];
 
 	private bool searching = false;
 	private bool idle = true;
@@ -59,23 +59,13 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	public event SelectorSelectedEvent? SelectionChanged;
 	public event GetItemsEvent? LoadItems;
 
-	public ObservableCollection<object> FilteredItems { get; set; } = new ObservableCollection<object>();
+	public CollectionViewSource FilteredItems { get; set; } = new CollectionViewSource();
 
 	public bool SearchEnabled { get; set; } = true;
 	public bool HasSearch { get; set; } = false;
 	public Type? ObjectType { get; set; }
 
-	public IEnumerable<object> Entries
-	{
-		get
-		{
-			List<object> values = new List<object>();
-			foreach (ItemEntry entry in this.entries)
-				values.Add(entry.Item);
-
-			return values;
-		}
-	}
+	public IEnumerable<object> Entries => this.entries.Select(entry => entry.Item);
 
 	public object? Value
 	{
@@ -97,23 +87,8 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 
 	public double ScrollPosition
 	{
-		get
-		{
-			ScrollViewer? scroll = this.ScrollViewer;
-			if (scroll == null)
-				return 0;
-
-			return scroll.VerticalOffset;
-		}
-
-		set
-		{
-			ScrollViewer? scroll = this.ScrollViewer;
-			if (scroll == null)
-				return;
-
-			scroll.ScrollToVerticalOffset(value);
-		}
+		get => this.ScrollViewer?.VerticalOffset ?? 0;
+		set => this.ScrollViewer?.ScrollToVerticalOffset(value);
 	}
 
 	private static ILogger Log => Serilog.Log.ForContext<Selector>();
@@ -122,8 +97,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	{
 		get
 		{
-			Decorator? border = VisualTreeHelper.GetChild(this.ListBox, 0) as Decorator;
-			if (border == null)
+			if (VisualTreeHelper.GetChild(this.ListBox, 0) is not Decorator border)
 				return null;
 
 			return border.Child as ScrollViewer;
@@ -146,9 +120,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	{
 		lock (this.entries)
 		{
-			ItemEntry entry = default;
-			entry.Item = item;
-			entry.OriginalIndex = this.entries.Count;
+			var entry = new ItemEntry { Item = item, OriginalIndex = this.entries.Count };
 			this.entries.Add(entry);
 
 			if (this.ObjectType == null)
@@ -162,35 +134,31 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	{
 		lock (this.entries)
 		{
+			if (this.ObjectType == null)
+			{
+				var firstItem = items.FirstOrDefault();
+				if (firstItem != null)
+				{
+					this.ObjectType = firstItem.GetType();
+				}
+			}
+
+			// Allocate enough space for all items to prevent resizing
+			this.entries.Capacity = this.entries.Count + items.Count();
+
 			foreach (object item in items)
 			{
-				ItemEntry entry = default;
-				entry.Item = item;
-				entry.OriginalIndex = this.entries.Count;
+				var entry = new ItemEntry { Item = item, OriginalIndex = this.entries.Count };
 				this.entries.Add(entry);
-
-				if (this.ObjectType == null)
-				{
-					this.ObjectType = item.GetType();
-				}
 			}
 		}
 	}
 
-	public void FilterItems()
-	{
-		Task.Run(this.DoFilter);
-	}
+	public void FilterItems() => Task.Run(this.DoFilter);
 
-	public Task FilterItemsAsync()
-	{
-		return this.DoFilter();
-	}
+	public Task FilterItemsAsync() => this.DoFilter();
 
-	public void RaiseSelectionChanged()
-	{
-		this.SelectionChanged?.Invoke(false);
-	}
+	public void RaiseSelectionChanged() => this.SelectionChanged?.Invoke(false);
 
 	private static void OnValueChangedStatic(DependencyObject sender, DependencyPropertyChangedEventArgs e)
 	{
@@ -202,15 +170,9 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 
 	private void OnLoaded(object sender, RoutedEventArgs e)
 	{
-		if (this.ObjectType != null)
+		if (this.ObjectType != null && SearchInputs.TryGetValue(this.ObjectType, out var value))
 		{
-			if (SearchInputs.ContainsKey(this.ObjectType))
-				this.SearchBox.Text = SearchInputs[this.ObjectType];
-
-			if (ScrollPositions.ContainsKey(this.ObjectType))
-			{
-				this.ScrollPosition = ScrollPositions[this.ObjectType];
-			}
+			this.SearchBox.Text = value;
 		}
 
 		Keyboard.Focus(this.SearchBox);
@@ -229,6 +191,11 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 				await Dispatch.MainThread();
 				this.ProgressBar.Visibility = Visibility.Collapsed;
 
+				if (this.ObjectType != null && ScrollPositions.TryGetValue(this.ObjectType, out double value))
+				{
+					this.ScrollPosition = value;
+				}
+
 				this.ListBox.ScrollIntoView(this.Value);
 			});
 		}
@@ -243,14 +210,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		if (this.ObjectType == null)
 			return;
 
-		if (!SearchInputs.ContainsKey(this.ObjectType))
-			SearchInputs.Add(this.ObjectType, null);
-
 		SearchInputs[this.ObjectType] = this.SearchBox.Text;
-
-		if (!ScrollPositions.ContainsKey(this.ObjectType))
-			ScrollPositions.Add(this.ObjectType, 0);
-
 		ScrollPositions[this.ObjectType] = this.ScrollPosition;
 	}
 
@@ -264,15 +224,12 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		this.HasSearch = !string.IsNullOrWhiteSpace(str);
 
 		SearchInputs[this.ObjectType] = str;
-		Task.Run(async () => { await this.Search(str); });
+		Task.Run(() => this.Search(str));
 
 		this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.HasSearch)));
 	}
 
-	private void OnClearSearchClicked(object sender, RoutedEventArgs e)
-	{
-		this.SearchBox.Text = string.Empty;
-	}
+	private void OnClearSearchClicked(object sender, RoutedEventArgs e) => this.SearchBox.Text = string.Empty;
 
 	private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
 	{
@@ -296,10 +253,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 				await Task.Delay(100);
 
 			this.searching = true;
-			string currentInput = await Application.Current.Dispatcher.InvokeAsync<string>(() =>
-			{
-				return this.SearchBox.Text;
-			});
+			var currentInput = await Application.Current.Dispatcher.InvokeAsync(() => this.SearchBox.Text);
 
 			// If the input was changed, abort this task
 			if (str != currentInput)
@@ -308,15 +262,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 				return;
 			}
 
-			if (string.IsNullOrEmpty(str))
-			{
-				this.searchQuery = null;
-			}
-			else
-			{
-				str = str.ToLower();
-				this.searchQuery = str.Split(' ');
-			}
+			this.searchQuery = string.IsNullOrEmpty(str) ? null : str.ToLower().Split(' ');
 
 			this.abortSearch = false;
 			await Task.Run(this.DoFilter);
@@ -343,61 +289,46 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 			entries = new ConcurrentQueue<ItemEntry>(this.entries);
 		}
 
-		ConcurrentBag<ItemEntry> filteredEntries = new ConcurrentBag<ItemEntry>();
+		ConcurrentBag<ItemEntry> filteredEntries = [];
 
-		int threads = 4;
-		List<Task> tasks = new List<Task>();
-		for (int i = 0; i < threads; i++)
+		var tasks = Enumerable.Range(0, Environment.ProcessorCount).Select(_ => Task.Run(() =>
 		{
-			Task t = Task.Run(() =>
+			while (entries.TryDequeue(out var entry))
 			{
-				while (!entries.IsEmpty)
+				try
 				{
-					ItemEntry entry;
-					if (!entries.TryDequeue(out entry))
+					if (this.Filter != null && !this.Filter.Invoke(entry.Item, this.searchQuery))
+					{
 						continue;
-
-					try
-					{
-						if (this.Filter != null && !this.Filter.Invoke(entry.Item, this.searchQuery))
-							continue;
-					}
-					catch (Exception ex)
-					{
-						Log.Error(ex, $"Failed to filter selector item: {entry.Item}");
-					}
-
-					filteredEntries.Add(entry);
-
-					if (this.abortSearch)
-					{
-						entries.Clear();
 					}
 				}
-			});
+				catch (Exception ex)
+				{
+					Log.Error(ex, $"Failed to filter selector item: {entry.Item}");
+				}
 
-			tasks.Add(t);
-		}
+				filteredEntries.Add(entry);
 
-		await Task.WhenAll(tasks.ToArray());
+				if (this.abortSearch)
+				{
+					entries.Clear();
+				}
+			}
+		})).ToArray();
+
+		await Task.WhenAll(tasks);
 
 		IOrderedEnumerable<ItemEntry>? sortedFilteredEntries = filteredEntries.OrderBy(cc => cc.OriginalIndex);
 
 		if (this.Sort != null)
 		{
-			Compare comp = new Compare(this.Sort);
+			var comp = new Compare(this.Sort);
 			sortedFilteredEntries = sortedFilteredEntries.OrderBy(cc => cc.Item, comp);
 		}
 
 		await Application.Current.Dispatcher.InvokeAsync(() =>
 		{
-			this.FilteredItems.Clear();
-
-			foreach (ItemEntry obj in sortedFilteredEntries)
-			{
-				this.FilteredItems.Add(obj.Item);
-			}
-
+			this.FilteredItems.Source = sortedFilteredEntries.Select(e => e.Item).ToList();
 			this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.FilteredItems)));
 		});
 
@@ -423,10 +354,10 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		while (!this.idle)
 			await Task.Delay(10);
 
-		if (this.FilteredItems.Count <= 0)
+		if (((IList<object>)this.FilteredItems.View).Count <= 0)
 			return;
 
-		this.Value = this.FilteredItems[0];
+		this.Value = ((IList<object>)this.FilteredItems.View)[0];
 	}
 
 	private void OnDoubleClick(object sender, MouseButtonEventArgs e)
@@ -446,14 +377,9 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		public int OriginalIndex;
 	}
 
-	private class Compare : IComparer<object>
+	private class Compare(SortEvent filter) : IComparer<object>
 	{
-		private readonly SortEvent filter;
-
-		public Compare(SortEvent filter)
-		{
-			this.filter = filter;
-		}
+		private readonly SortEvent filter = filter;
 
 		int IComparer<object>.Compare(object? x, object? y)
 		{

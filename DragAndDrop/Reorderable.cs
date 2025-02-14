@@ -38,8 +38,18 @@ public class Reorderable : Behaviour
 	{
 		base.Dispose();
 
+		this.ItemsControl.ItemContainerGenerator.StatusChanged -= this.OnContainerGeneratorStatusChanged;
+
 		INotifyCollectionChanged source = this.ItemsControl.Items;
 		source.CollectionChanged -= this.OnControlItemsChanged;
+
+		foreach (object item in this.ItemsControl.Items)
+		{
+			this.DetachFromContainerContext(item);
+		}
+
+		this.dragAdorner?.Detach();
+		this.dragAdorner = null;
 	}
 
 	private void OnContainerGeneratorStatusChanged(object? sender, EventArgs e)
@@ -71,8 +81,19 @@ public class Reorderable : Behaviour
 
 	private void DetachFromContainerContext(object context)
 	{
-		// The item container is just deleted in this context, so its fine to just let the events die with it.
-		////DependencyObject? itemContainer = this.ItemsControl.ItemContainerGenerator.ContainerFromItem(context);
+		UIElement? itemContainer = this.ItemsControl.ItemContainerGenerator.ContainerFromItem(context) as UIElement;
+
+		if (itemContainer == null)
+			return;
+
+		itemContainer.AllowDrop = false;
+
+		itemContainer.PreviewMouseMove -= this.OnMouseMove;
+		itemContainer.Drop -= this.OnDrop;
+		itemContainer.DragEnter -= this.OnDragEnter;
+		itemContainer.DragLeave -= this.OnDragLeave;
+		itemContainer.DragOver -= this.OnDragOver;
+		itemContainer.GiveFeedback -= this.OnGiveFeedback;
 	}
 
 	private void AttachToContainerContext(object context)
@@ -122,7 +143,7 @@ public class Reorderable : Behaviour
 
 	private void OnDrop(object sender, DragEventArgs e)
 	{
-		this.dragAdorner?.Detatch();
+		this.dragAdorner?.Detach();
 		this.dragAdorner = null;
 
 		if (sender is not FrameworkElement senderElement)
@@ -211,7 +232,7 @@ public class Reorderable : Behaviour
 
 		if (this.dragAdorner.InsertPosition != newPos)
 		{
-			this.dragAdorner.Detatch();
+			this.dragAdorner.Detach();
 			this.dragAdorner = new(senderElement, e, newPos);
 		}
 	}
@@ -271,7 +292,7 @@ public class Reorderable : Behaviour
 
 	private void OnDragLeave(object sender, DragEventArgs e)
 	{
-		this.dragAdorner?.Detatch();
+		this.dragAdorner?.Detach();
 		this.dragAdorner = null;
 	}
 }
