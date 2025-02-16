@@ -328,7 +328,9 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 
 		await Application.Current.Dispatcher.InvokeAsync(() =>
 		{
+			this.ListBox.SelectionChanged -= this.OnSelectionChanged;
 			this.FilteredItems.Source = sortedFilteredEntries.Select(e => e.Item).ToList();
+			this.ListBox.SelectionChanged += this.OnSelectionChanged;
 			this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.FilteredItems)));
 		});
 
