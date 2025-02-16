@@ -9,6 +9,7 @@ using System.Windows;
 public abstract class Behaviour : IDisposable
 {
 	public readonly DependencyObject Host;
+	private bool disposed = false;
 
 	public Behaviour(DependencyObject host)
 	{
@@ -35,6 +36,20 @@ public abstract class Behaviour : IDisposable
 
 	public virtual void Dispose()
 	{
+		if (this.disposed)
+			return;
+
+		if (this.Host is FrameworkElement frameworkElement)
+		{
+			frameworkElement.Loaded -= this.OnSelfLoaded;
+		}
+		else if (this.Host is FrameworkContentElement frameworkContentElement)
+		{
+			frameworkContentElement.Loaded -= this.OnSelfLoaded;
+		}
+
+		disposed = true;
+		GC.SuppressFinalize(this);
 	}
 
 	private void OnSelfLoaded(object sender, RoutedEventArgs e)

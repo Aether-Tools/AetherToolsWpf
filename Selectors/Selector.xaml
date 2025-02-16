@@ -63,7 +63,7 @@
 				 Grid.Row="1"
 				 HorizontalContentAlignment="Stretch"
 				 ItemTemplate="{Binding ItemTemplate}"
-				 ItemsSource="{Binding FilteredItems}"
+				 ItemsSource="{Binding FilteredItems.View}"
 				 MouseDoubleClick="OnDoubleClick"
 				 SelectedItem="{Binding Value}"
 				 SelectionChanged="OnSelectionChanged"

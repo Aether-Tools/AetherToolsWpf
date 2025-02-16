@@ -3,8 +3,8 @@
 
 namespace XivToolsWpf.DragAndDrop;
 
-using System.Windows.Documents;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Media;
 
 public abstract class DropTargetAdorner : Adorner
@@ -22,7 +22,7 @@ public abstract class DropTargetAdorner : Adorner
 
 	public DragEventArgs EventArgs { get; private set; }
 
-	public void Detatch()
+	public void Detach()
 	{
 		this.adornerLayer?.Remove(this);
 	}
