@@ -37,6 +37,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 	private string[]? searchQuery;
 	private bool xamlLoading = false;
 	private bool abortSearch = false;
+	private bool filtering = false;
 
 	public Selector()
 	{
@@ -328,9 +329,10 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 
 		await Application.Current.Dispatcher.InvokeAsync(() =>
 		{
-			this.ListBox.SelectionChanged -= this.OnSelectionChanged;
+			this.filtering = true;
 			this.FilteredItems.Source = sortedFilteredEntries.Select(e => e.Item).ToList();
-			this.ListBox.SelectionChanged += this.OnSelectionChanged;
+			this.ListBox.SelectedItem = null;
+			this.filtering = false;
 			this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(this.FilteredItems)));
 		});
 
@@ -342,7 +344,7 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		if (e.AddedItems.Count <= 0)
 			return;
 
-		if (this.searching)
+		if (this.searching || this.filtering)
 			return;
 
 		this.RaiseSelectionChanged();
@@ -356,10 +358,12 @@ public partial class Selector : UserControl, INotifyPropertyChanged
 		while (!this.idle)
 			await Task.Delay(10);
 
-		if (((IList<object>)this.FilteredItems.View).Count <= 0)
-			return;
-
-		this.Value = ((IList<object>)this.FilteredItems.View)[0];
+		ICollectionView collectionView = CollectionViewSource.GetDefaultView(this.FilteredItems.View);
+		if (collectionView?.Cast<object>().Any() == true)
+		{
+			this.Value = collectionView.Cast<object>().FirstOrDefault();
+			this.RaiseSelectionChanged();
+		}
 	}
 
 	private void OnDoubleClick(object sender, MouseButtonEventArgs e)
