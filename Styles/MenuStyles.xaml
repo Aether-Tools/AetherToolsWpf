@@ -353,6 +353,172 @@
 		<Setter Property="HorizontalContentAlignment" Value="Left"/>
 	</Style>
 
+	<Style x:Key="TransparentButtonMenuItem" TargetType="{x:Type MenuItem}" BasedOn="{StaticResource AnaMenuItem}">
+		<Setter Property="Background" Value="Transparent"/>
+		<Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}"/>
+		<Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+		<Setter Property="BorderThickness" Value="1"/>
+		<Setter Property="Padding" Value="6, 3"/>
+		<Setter Property="Margin" Value="1"/>
+		<Setter Property="MinWidth" Value="20"/>
+		<Setter Property="MinHeight" Value="20"/>
+		<Setter Property="FontSize" Value="12"/>
+		<Setter Property="SnapsToDevicePixels" Value="True"/>
+		<Setter Property="Border.CornerRadius" Value="3"/>
+		<Setter Property="Popup.Placement" Value="Bottom"/>
+
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type MenuItem}">
+					<Grid Cursor="Hand" x:Name="Content">
+						<Border x:Name="HoverBorder"
+								Style="{DynamicResource Panel}"
+								CornerRadius="{TemplateBinding Border.CornerRadius}"
+								Opacity="0"/>
+
+						<Border x:Name="Border"
+								Background="{TemplateBinding Background}"
+								BorderBrush="{TemplateBinding BorderBrush}"
+								BorderThickness="{TemplateBinding BorderThickness}"
+								CornerRadius="{TemplateBinding Border.CornerRadius}"
+								SnapsToDevicePixels="True"/>
+
+						<wpf:Ripple Background="Transparent"
+									HorizontalContentAlignment="Stretch"
+									VerticalContentAlignment="Stretch"
+									Focusable="False"
+									Feedback="{DynamicResource MaterialDesignBody}">
+							<wpf:Ripple.Clip>
+								<MultiBinding Converter="{StaticResource BorderClipConverter}">
+									<Binding ElementName="Border" Path="ActualWidth" />
+									<Binding ElementName="Border" Path="ActualHeight" />
+									<Binding ElementName="Border" Path="CornerRadius" />
+									<Binding ElementName="Border" Path="BorderThickness" />
+								</MultiBinding>
+							</wpf:Ripple.Clip>
+
+							<Grid HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+								  VerticalAlignment="Center"
+								  Background="Transparent"
+								  Margin="{TemplateBinding Padding}">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="Auto"/>
+								</Grid.ColumnDefinitions>
+
+								<ana:IconBlock x:Name="IconArea"
+											   Grid.Column="0"
+											   Icon="{TemplateBinding Icon, Converter={StaticResource StringToIconConveter}}"
+											   Foreground="{TemplateBinding Foreground}"
+											   HorizontalAlignment="Center"
+											   VerticalAlignment="Center"
+											   FontSize="11"
+											   Margin="0, 0, 5, 0"/>
+
+								<ana:TextBlock x:Name="HeaderText"
+											   Grid.Column="1"
+											   Key="{TemplateBinding Header}"
+											   Foreground="{TemplateBinding Foreground}"
+											   FontSize="{TemplateBinding FontSize}"
+											   VerticalAlignment="Center"
+											   Margin="0"/>
+
+								<fa:IconBlock x:Name="Chevron"
+											  Grid.Column="2"
+											  Icon="ChevronDown"
+											  Foreground="{TemplateBinding Foreground}"
+											  VerticalAlignment="Center"
+											  FontSize="10"
+											  Margin="0, 1, 0, 0"/>
+							</Grid>
+						</wpf:Ripple>
+
+						<Popup x:Name="PART_Popup"
+							   AllowsTransparency="True"
+							   Focusable="False"
+							   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+							   PopupAnimation="Slide"
+							   Placement="{TemplateBinding Popup.Placement}"
+							   VerticalOffset="0"
+							   HorizontalOffset="{TemplateBinding Popup.HorizontalOffset}"
+							   CacheMode="{Binding RelativeSource={RelativeSource Self}, Path=(wpf:ShadowAssist.CacheMode)}">
+							<Border x:Name="SubMenuBorder"
+									Background="{DynamicResource MaterialDesignPaper}"
+									Effect="{DynamicResource MaterialDesignShadowDepth1}"
+									BorderThickness="0"
+									CornerRadius="6">
+								<Border Background="Transparent" Margin="3">
+									<ScrollViewer x:Name="SubMenuScrollViewer"
+												  Style="{DynamicResource {ComponentResourceKey ResourceId=MenuScrollViewer, TypeInTargetAssembly={x:Type FrameworkElement}}}">
+										<Grid RenderOptions.ClearTypeHint="Enabled" Margin="0">
+											<Canvas HorizontalAlignment="Left" Height="0" VerticalAlignment="Top" Width="0">
+												<Rectangle x:Name="OpaqueRect"
+														   Fill="{Binding Background, ElementName=SubMenuBorder}"
+														   Height="{Binding ActualHeight, ElementName=SubMenuBorder}"
+														   Width="{Binding ActualWidth, ElementName=SubMenuBorder}"/>
+											</Canvas>
+											<ItemsPresenter x:Name="ItemsPresenter"
+															KeyboardNavigation.DirectionalNavigation="Cycle"
+															Grid.IsSharedSizeScope="True"
+															SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"
+															KeyboardNavigation.TabNavigation="Cycle"/>
+										</Grid>
+									</ScrollViewer>
+								</Border>
+							</Border>
+						</Popup>
+					</Grid>
+
+					<ControlTemplate.Triggers>
+						<Trigger Property="HasItems" Value="False">
+							<Setter TargetName="Chevron" Property="Visibility" Value="Collapsed"/>
+						</Trigger>
+						<Trigger Property="Header" Value="{x:Null}">
+							<Setter TargetName="HeaderText" Property="Visibility" Value="Collapsed"/>
+							<Setter TargetName="IconArea" Property="Margin" Value="0"/>
+						</Trigger>
+						<Trigger Property="Icon" Value="{x:Null}">
+							<Setter TargetName="IconArea" Property="Visibility" Value="Collapsed"/>
+						</Trigger>
+						<Trigger Property="IsMouseOver" Value="True">
+							<Setter TargetName="HoverBorder" Property="Opacity" Value="1"/>
+						</Trigger>
+						<Trigger Property="IsSubmenuOpen" Value="True">
+							<Setter TargetName="HoverBorder" Property="Opacity" Value="1"/>
+						</Trigger>
+						<Trigger Property="IsEnabled" Value="False">
+							<Setter TargetName="Border" Property="Opacity" Value="0"/>
+							<Setter TargetName="Content" Property="Opacity" Value="0.5"/>
+						</Trigger>
+						<Trigger Property="HasDropShadow" SourceName="PART_Popup" Value="True">
+							<Setter TargetName="SubMenuBorder" Property="Margin" Value="5"/>
+						</Trigger>
+						<Trigger Property="IsSuspendingPopupAnimation" Value="True">
+							<Setter Property="PopupAnimation" TargetName="PART_Popup" Value="None"/>
+						</Trigger>
+						<Trigger Property="CanContentScroll" SourceName="SubMenuScrollViewer" Value="False">
+							<Setter Property="Canvas.Top" TargetName="OpaqueRect" Value="{Binding VerticalOffset, ElementName=SubMenuScrollViewer}"/>
+							<Setter Property="Canvas.Left" TargetName="OpaqueRect" Value="{Binding HorizontalOffset, ElementName=SubMenuScrollViewer}"/>
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<Style x:Key="TransparentButtonMenuItemLeft" TargetType="{x:Type MenuItem}" BasedOn="{StaticResource TransparentButtonMenuItem}">
+		<Setter Property="Border.CornerRadius" Value="3, 0, 0, 3"/>
+		<Setter Property="BorderThickness" Value="1, 1, 0, 1"/>
+		<Setter Property="Margin" Value="1, 0, 0, 0"/>
+	</Style>
+
+	<Style x:Key="TransparentButtonMenuItemRight" TargetType="{x:Type MenuItem}" BasedOn="{StaticResource TransparentButtonMenuItem}">
+		<Setter Property="Border.CornerRadius" Value="0, 3, 3, 0"/>
+		<Setter Property="Margin" Value="0, 0, 1, 0"/>
+		<Setter Property="Padding" Value="5, 2"/>
+	</Style>
+
 	<Style x:Key="AnaMenuItemHeader" TargetType="{x:Type MenuItem}">
 		<Setter Property="Background" Value="{DynamicResource AttentionToActionBrush}"/>
 		<Setter Property="Padding" Value="0"/>
