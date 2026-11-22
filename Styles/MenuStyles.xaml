@@ -14,6 +14,7 @@
 			<wpf:BrushRoundConverter x:Key="BrushRoundConverter"/>
 			<converters:StringHasContentToVisibilityConverter x:Key="StringHasContentConverter"/>
 			<converters:MaterialDesignBorderClipConverter x:Key="BorderClipConverter"/>
+			<converters:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
 		</ResourceDictionary>
 	</ResourceDictionary.MergedDictionaries>
 
@@ -206,6 +207,15 @@
 							<Setter Property="Canvas.Top" TargetName="OpaqueRect" Value="{Binding VerticalOffset, ElementName=SubMenuScrollViewer}"/>
 							<Setter Property="Canvas.Left" TargetName="OpaqueRect" Value="{Binding HorizontalOffset, ElementName=SubMenuScrollViewer}"/>
 						</Trigger>
+						<DataTrigger Binding="{Binding Command, RelativeSource={RelativeSource Self}, Converter={StaticResource NotNullToBoolConverter}}" Value="True">
+							<Setter TargetName="HeaderText" Property="ContentTemplate">
+								<Setter.Value>
+									<DataTemplate>
+										<TextBlock Text="{Binding}" FontWeight="Light" FontSize="14"/>
+									</DataTemplate>
+								</Setter.Value>
+							</Setter>
+						</DataTrigger>
 					</ControlTemplate.Triggers>
 				</ControlTemplate>
 			</Setter.Value>
@@ -545,6 +555,9 @@
 	</Style>
 
 	<Style x:Key="AnaContextMenu" TargetType="{x:Type ContextMenu}" BasedOn="{StaticResource MaterialDesignContextMenu}">
+		<Style.Resources>
+			<Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource AnaMenuItem}"/>
+		</Style.Resources>
 		<Setter Property="Margin" Value="0"/>
 		<Setter Property="Padding" Value="0"/>
 		<Setter Property="Template">
