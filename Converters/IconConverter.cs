@@ -20,6 +20,6 @@ public class IconConverter : IValueConverter
 
 	public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
 	{
-		return Enum.GetName<IconChar>((IconChar)value) ?? string.Empty;
+		return value is IconChar icon ? Enum.GetName(icon) ?? string.Empty : string.Empty;
 	}
 }
