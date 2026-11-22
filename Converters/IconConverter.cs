@@ -1,4 +1,4 @@
-﻿// © XIV-Tools.
+// © XIV-Tools.
 // Licensed under the MIT license.
 
 namespace XivToolsWpf.Converters;
@@ -20,6 +20,6 @@ public class IconConverter : IValueConverter
 
 	public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
 	{
-		throw new NotImplementedException();
+		return value is IconChar icon ? Enum.GetName(icon) ?? string.Empty : string.Empty;
 	}
 }

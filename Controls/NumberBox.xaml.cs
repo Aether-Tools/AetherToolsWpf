@@ -1,4 +1,4 @@
-﻿// © XIV-Tools.
+// © XIV-Tools.
 // Licensed under the MIT license.
 
 namespace XivToolsWpf.Controls;
@@ -22,33 +22,27 @@ using WinPoint = System.Windows.Point;
 [AddINotifyPropertyChangedInterface]
 public partial class NumberBox : UserControl, INotifyPropertyChanged
 {
-	public static readonly IBind<double> ValueDp = Binder.Register<double, NumberBox>(nameof(Value), OnValueChanged);
-	public static readonly IBind<double> TickDp = Binder.Register<double, NumberBox>(nameof(TickFrequency), OnTickChanged, BindMode.OneWay);
-	public static readonly IBind<SliderModes> SliderDp = Binder.Register<SliderModes, NumberBox>(nameof(Slider), OnSliderChanged, BindMode.OneWay);
-	public static readonly IBind<bool> ButtonsDp = Binder.Register<bool, NumberBox>(nameof(Buttons), OnButtonsChanged, BindMode.OneWay);
-	public static readonly IBind<double> MinDp = Binder.Register<double, NumberBox>(nameof(Minimum), OnMinimumChanged, BindMode.OneWay);
-	public static readonly IBind<double> MaxDp = Binder.Register<double, NumberBox>(nameof(Maximum), OnMaximumChanged, BindMode.OneWay);
-	public static readonly IBind<bool> WrapDp = Binder.Register<bool, NumberBox>(nameof(Wrap), BindMode.OneWay);
-	public static readonly IBind<double> OffsetDp = Binder.Register<double, NumberBox>(nameof(ValueOffset), BindMode.OneWay);
-	public static readonly IBind<bool> UncapTextInputDp = Binder.Register<bool, NumberBox>(nameof(UncapTextInput), BindMode.OneWay);
+	public static readonly IBind<double> ValueDp = Binder.Register<double, NumberBox>(nameof(Value), OnDisplayValueChanged);
+	public static readonly IBind<double> TickDp = Binder.Register<double, NumberBox>(nameof(TickFrequency), OnTickChanged, BindMode.OneWay, defaultValue: 1.0);
+	public static readonly IBind<SliderModes> SliderDp = Binder.Register<SliderModes, NumberBox>(nameof(Slider), OnSliderChanged, BindMode.OneWay, defaultValue: SliderModes.None);
+	public static readonly IBind<bool> ButtonsDp = Binder.Register<bool, NumberBox>(nameof(Buttons), BindMode.OneWay, defaultValue: false);
+	public static readonly IBind<double> MinDp = Binder.Register<double, NumberBox>(nameof(Minimum), OnMinimumChanged, BindMode.OneWay, defaultValue: double.MinValue);
+	public static readonly IBind<double> MaxDp = Binder.Register<double, NumberBox>(nameof(Maximum), OnMaximumChanged, BindMode.OneWay, defaultValue: double.MaxValue);
+	public static readonly IBind<bool> WrapDp = Binder.Register<bool, NumberBox>(nameof(Wrap), BindMode.OneWay, defaultValue: false);
+	public static readonly IBind<double> OffsetDp = Binder.Register<double, NumberBox>(nameof(ValueOffset), OnDisplayValueChanged, BindMode.OneWay, defaultValue: 0.0);
+	public static readonly IBind<bool> UncapTextInputDp = Binder.Register<bool, NumberBox>(nameof(UncapTextInput), BindMode.OneWay, defaultValue: false);
 
 	private string? inputString;
 	private Key keyHeld = Key.None;
 	private double relativeSliderStart;
 	private double relativeSliderCurrent;
 	private bool bypassFocusLock = false;
+	private Window? attachedWindow;
 
 	public NumberBox()
 	{
 		this.InitializeComponent();
-		this.TickFrequency = 1;
-		this.Minimum = double.MinValue;
-		this.Maximum = double.MaxValue;
-		this.Wrap = false;
-		this.Text = this.DisplayValue.ToString();
-		this.Slider = SliderModes.None;
-		this.Buttons = false;
-
+		this.inputString = this.DisplayValue.ToString("0.###");
 		this.ContentArea.DataContext = this;
 	}
 
@@ -247,9 +241,11 @@ public partial class NumberBox : UserControl, INotifyPropertyChanged
 		}
 	}
 
+	public bool IsAbsoluteSlider => this.Slider == SliderModes.Absolute;
+
 	protected override void OnPreviewKeyDown(KeyEventArgs e)
 	{
-		bool focused = this.InputBox.IsKeyboardFocused || this.InputSlider.IsKeyboardFocused;
+		bool focused = this.InputBox.IsKeyboardFocused || this.IsKeyboardFocusWithin;
 		if (!focused)
 			return;
 
@@ -293,32 +289,27 @@ public partial class NumberBox : UserControl, INotifyPropertyChanged
 		this.TickValue(e.Delta > 0);
 	}
 
-	private static void OnValueChanged(NumberBox sender, double v)
+	private static void OnDisplayValueChanged(NumberBox sender, double value)
 	{
 		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.SliderValue)));
 
 		if (!sender.bypassFocusLock && sender.InputBox.IsFocused)
 			return;
 
-		sender.Text = sender.DisplayValue.ToString("0.###");
+		sender.UpdateTextFromValue();
 	}
 
 	private static void OnSliderChanged(NumberBox sender, SliderModes mode)
 	{
 		bool v = mode != SliderModes.None;
 
-		sender.InputSlider.IsMoveToPointEnabled = mode == SliderModes.Absolute;
 		sender.SliderArea.Width = v ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
 		sender.InputBoxArea.Width = v ? new GridLength(42) : new GridLength(1, GridUnitType.Star);
 
+		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.IsAbsoluteSlider)));
 		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.SliderMaximum)));
 		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.SliderMinimum)));
 		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.SliderValue)));
-	}
-
-	private static void OnButtonsChanged(NumberBox sender, bool v)
-	{
-		sender.ButtonsArea.Visibility = v ? Visibility.Visible : Visibility.Collapsed;
 	}
 
 	private static void OnMinimumChanged(NumberBox sender, double value)
@@ -338,20 +329,35 @@ public partial class NumberBox : UserControl, INotifyPropertyChanged
 		sender.PropertyChanged?.Invoke(sender, new PropertyChangedEventArgs(nameof(NumberBox.SliderValue)));
 	}
 
-	private void UserControl_Loaded(object sender, RoutedEventArgs e)
+	private void UpdateTextFromValue()
 	{
-		Window window = Window.GetWindow(this);
-		if (window != null)
+		this.inputString = this.DisplayValue.ToString("0.###");
+		this.ErrorDisplay.Visibility = Visibility.Collapsed;
+		this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NumberBox.Text)));
+	}
+
+	private void OnLoaded(object sender, RoutedEventArgs e)
+	{
+		if (this.attachedWindow == null)
 		{
-			window.MouseDown += this.OnWindowMouseDown;
-			window.Deactivated += this.OnWindowDeactivated;
+			Window? window = Window.GetWindow(this);
+			if (window != null)
+			{
+				this.attachedWindow = window;
+				window.MouseDown += this.OnWindowMouseDown;
+				window.Deactivated += this.OnWindowDeactivated;
+			}
 		}
+	}
 
-		OnSliderChanged(this, this.Slider);
-		OnButtonsChanged(this, this.Buttons);
-		OnTickChanged(this, this.TickFrequency);
-
-		this.Text = this.DisplayValue.ToString("0.###");
+	private void OnUnloaded(object sender, RoutedEventArgs e)
+	{
+		if (this.attachedWindow != null)
+		{
+			this.attachedWindow.MouseDown -= this.OnWindowMouseDown;
+			this.attachedWindow.Deactivated -= this.OnWindowDeactivated;
+			this.attachedWindow = null;
+		}
 	}
 
 	private double Validate(double v)
@@ -468,13 +474,13 @@ public partial class NumberBox : UserControl, INotifyPropertyChanged
 
 	private void OnSliderMouseMove(object sender, MouseEventArgs e)
 	{
-		if (this.Slider != SliderModes.Absolute)
+		if (this.Slider != SliderModes.Absolute || sender is not Slider slider)
 			return;
 
 		if (e.LeftButton == MouseButtonState.Pressed && this.Wrap)
 		{
-			WinPoint rightEdge = this.InputSlider.PointToScreen(new WinPoint(this.InputSlider.ActualWidth - 5, this.InputSlider.ActualHeight / 2));
-			WinPoint leftEdge = this.InputSlider.PointToScreen(new WinPoint(6, this.InputSlider.ActualHeight / 2));
+			WinPoint rightEdge = slider.PointToScreen(new WinPoint(slider.ActualWidth - 5, slider.ActualHeight / 2));
+			WinPoint leftEdge = slider.PointToScreen(new WinPoint(6, slider.ActualHeight / 2));
 
 			if (WinCur.Position.X > rightEdge.X)
 			{
